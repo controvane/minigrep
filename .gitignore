@@ -1,0 +1,5 @@
+# El compilado del programa
+/target
+
+# El archivo memoria de sesiones de lazyvim
+.terminal_session.json
