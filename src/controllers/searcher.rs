@@ -1,50 +1,108 @@
-use std::process;
-use std::fs;
 use crate::models::structs::arguments::Arguments;
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
+use std::process;
 
-pub fn search_on_file(arguments: Arguments) {
-    let file_contents = match fs::read_to_string(arguments.get_path()){
-        Ok(value) => value,
-        Err(_) => {
-            println!("File was either not found or inexistent");
-            process::exit(1);
-        },
-    };
-
-    let terms: Vec<String> = arguments
-        .get_search_terms()
-        .iter()
-        .map(|x|
-            if arguments.get_case_insensitive() {
-                return x.to_lowercase();
-            }
-            else{
-                return x.clone();
-            }
-        )
-        .collect();
-
-    for line in file_contents.lines() {
-        
-        let op_line = if arguments.get_case_insensitive(){
-            line.to_lowercase()
-        }
-        else{
-            line.to_string()
-        };
-
-        let mut all_exist = vec![false; terms.len()];
-        
-        for (i,word) in terms.iter().enumerate() {
-            if op_line.contains(word) {
-                all_exist[i] = true;
-            }
-        }
-
-        if all_exist.iter().all(|&x| x) {
-            println!("{}", line);
-        }
-    }
-
+fn apply_or_filters(
+    lines: impl Iterator<Item = (String, String)>,
+    terms: Vec<String>,
+) -> impl Iterator<Item = (String, String)> {
+    return lines.filter(move |(_orig, lower)| terms.iter().any(|p| lower.contains(p)));
 }
 
+fn apply_and_filters(
+    lines: impl Iterator<Item = (String, String)>,
+    terms: Vec<String>,
+) -> impl Iterator<Item = (String, String)> {
+    return lines.filter(move |(_orig, lower)| terms.iter().all(|p| lower.contains(p)));
+}
+
+fn apply_exclusions(
+    lines: impl Iterator<Item = (String, String)>,
+    terms: Vec<String>,
+) -> impl Iterator<Item = (String, String)> {
+    return lines.filter(move |(_orig, lower)| !terms.iter().any(|p| lower.contains(p)));
+}
+
+pub fn search_on_file(arguments: Arguments) {
+    let path = arguments.get_path();
+
+    let reader: Box<dyn BufRead> = if path.to_str().map_or(true, |s| s.is_empty()) {
+        Box::new(BufReader::new(io::stdin()))
+    } else {
+        let file = File::open(path);
+        match file {
+            Ok(value) => Box::new(BufReader::new(value)),
+            Err(_) => {
+                println!("File was either not found or inexistent.");
+                process::exit(1);
+            }
+        }
+    };
+
+    let or_terms: Vec<String> = arguments
+        .get_search_terms_or()
+        .iter()
+        .map(|x| {
+            if arguments.get_case_insensitive() {
+                return x.to_lowercase();
+            } else {
+                return x.clone();
+            }
+        })
+        .collect();
+
+    let and_terms: Vec<String> = arguments
+        .get_search_terms_and()
+        .iter()
+        .map(|x| {
+            if arguments.get_case_insensitive() {
+                return x.to_lowercase();
+            } else {
+                return x.clone();
+            }
+        })
+        .collect();
+
+    let ex_terms: Vec<String> = arguments
+        .get_search_terms_ex()
+        .iter()
+        .map(|x| {
+            if arguments.get_case_insensitive() {
+                return x.to_lowercase();
+            } else {
+                return x.clone();
+            }
+        })
+        .collect();
+
+    let base_lines = reader.lines().map_while(Result::ok);
+    let mut lines: Box<dyn Iterator<Item = (String, String)>> = if arguments.get_case_insensitive()
+    {
+        Box::new(base_lines.map(|line| {
+            let lower = line.to_lowercase();
+            return (line, lower);
+        }))
+    } else {
+        Box::new(base_lines.map(|line| {
+            let clone = line.clone();
+            return (line, clone);
+        }))
+    };
+
+    if arguments.get_search_terms_or().len() > 0 {
+        lines = Box::new(apply_or_filters(lines, or_terms));
+    }
+
+    if arguments.get_search_terms_and().len() > 0 {
+        lines = Box::new(apply_and_filters(lines, and_terms));
+    }
+
+    if arguments.get_search_terms_ex().len() > 0 {
+        lines = Box::new(apply_exclusions(lines, ex_terms));
+    }
+
+    for (original, _lower) in lines {
+        println!("{}", original);
+    }
+}
