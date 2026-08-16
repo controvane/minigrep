@@ -83,6 +83,10 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
         if arg == "-i" {
             arguments.insert("-i".to_string(), FlagValue::CaseSensitive(true));
         }
+        if arg == "-h" || arg == "--help" {
+            print_helper();
+            process::exit(0);
+        }
     }
 
     let mut any_exist: Vec<bool> = vec![false; 3];
@@ -119,4 +123,21 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
     }
 
     return ret_args;
+}
+
+fn print_helper() {
+    println!("minigrep is a tiny grep clone project in rust.");
+    println!(
+        "When using to search follow any of the search flags with a list of arguments in quotations."
+    );
+    println!("Divide the arguments with pipes ('|') inside the quotations.");
+    println!("This are the possible arguments:");
+    println!("-i: Forces case insensitivity throughout the search");
+    println!("-c: Search terms with or. Any line that has at least one of this will be shown.");
+    println!(
+        "-eq: Search terms with and. All terms described with this flag have to be present for the line to be shown."
+    );
+    println!(
+        "-ne: Excluded terms. Lines with this terms will be excluded from the output. Even if other search criteria found them."
+    );
 }

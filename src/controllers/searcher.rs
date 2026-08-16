@@ -1,6 +1,7 @@
 use crate::models::structs::arguments::Arguments;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{BufRead, BufReader};
+use std::path::Path;
 use std::process;
 
 fn apply_or_filters(
@@ -24,19 +25,25 @@ fn apply_exclusions(
     return lines.filter(move |(_orig, lower)| !terms.iter().any(|p| lower.contains(p)));
 }
 
-pub fn search_on_file(arguments: Arguments) {
+pub fn search(arguments: Arguments) {
     let path = arguments.get_path();
 
-    let reader: Box<dyn BufRead> = if path.to_str().map_or(true, |s| s.is_empty()) {
-        Box::new(BufReader::new(io::stdin()))
-    } else {
-        let file = File::open(path);
-        match file {
-            Ok(value) => Box::new(BufReader::new(value)),
-            Err(_) => {
-                println!("File was either not found or inexistent.");
-                process::exit(1);
-            }
+    if path.is_file() {
+        search_on_file(arguments, None);
+        return;
+    }
+
+    println!("Oops! you passed a dir, that is not implemented yet.")
+}
+
+fn search_on_file(arguments: Arguments, path: Option<&Path>) {
+    let path_to_open = path.unwrap_or_else(|| arguments.get_path());
+
+    let reader: Box<dyn BufRead> = match File::open(path_to_open) {
+        Ok(value) => Box::new(BufReader::new(value)),
+        Err(_) => {
+            println!("File was either not found or inexistent.");
+            process::exit(1);
         }
     };
 

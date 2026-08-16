@@ -2,7 +2,7 @@ mod controllers;
 mod models;
 
 use controllers::arg_parser::parse_arguments;
-use controllers::searcher::search_on_file;
+use controllers::searcher::search;
 use std::env;
 
 fn main() {
@@ -26,5 +26,5 @@ fn main() {
         arguments.get_search_terms_ex()
     );
 
-    search_on_file(arguments);
+    search(arguments);
 }
