@@ -137,6 +137,9 @@ fn print_helper() {
     );
     println!("Divide the arguments with pipes ('|') inside the quotations.");
     println!("This are the possible arguments:");
+    println!(
+        "-f: Optional. In case it is not passed it will use cwd. It is the path of the file or directory where the search should take place"
+    );
     println!("-i: Forces case insensitivity throughout the search");
     println!("-c: Search terms with or. Any line that has at least one of this will be shown.");
     println!(
