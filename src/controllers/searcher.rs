@@ -1,8 +1,10 @@
 use crate::controllers::file_walker::walk;
 use crate::models::enums::pos_path::InputSource;
 use crate::models::structs::arguments::Arguments;
+use rayon::iter::ParallelIterator;
+use rayon::prelude::ParallelBridge;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Write};
 use std::process;
 
 fn apply_or_filters(
@@ -75,25 +77,53 @@ pub fn search(arguments: Arguments) {
                         process::exit(1);
                     }
                 };
-                search_on_buffer(case_insensitive, reader, &or_terms, &and_terms, &ex_terms);
+                print_found_lines(search_on_buffer(
+                    case_insensitive,
+                    reader,
+                    &or_terms,
+                    &and_terms,
+                    &ex_terms,
+                ));
                 return;
             }
-            for file_path in walk(path) {
-                let reader = match File::open(file_path) {
+            walk(path).par_bridge().for_each(|file_path| {
+                let reader = match File::open(&file_path) {
                     Ok(file) => Box::new(BufReader::new(file)),
                     Err(_) => {
                         eprintln!("File was either not found or inexistent.");
-                        continue;
+                        return;
                     }
                 };
-                search_on_buffer(case_insensitive, reader, &or_terms, &and_terms, &ex_terms);
-            }
+                let lines =
+                    search_on_buffer(case_insensitive, reader, &or_terms, &and_terms, &ex_terms);
+                if lines.is_empty() {
+                    return;
+                }
+                let stdout = io::stdout();
+                let mut out = stdout.lock();
+                writeln!(out, "{}: ", file_path.display()).unwrap();
+                for line in lines {
+                    writeln!(out, "\t{}", line).unwrap();
+                }
+            });
         }
         InputSource::Stdin => {
             let reader: Box<dyn BufRead> = Box::new(BufReader::new(io::stdin()));
-            search_on_buffer(case_insensitive, reader, &or_terms, &and_terms, &ex_terms);
+            print_found_lines(search_on_buffer(
+                case_insensitive,
+                reader,
+                &or_terms,
+                &and_terms,
+                &ex_terms,
+            ));
         }
     };
+}
+
+fn print_found_lines(found_lines: Vec<String>) {
+    for line in found_lines {
+        println!("{}", line);
+    }
 }
 
 fn search_on_buffer<'a>(
@@ -102,7 +132,7 @@ fn search_on_buffer<'a>(
     or_terms: &'a [String],
     and_terms: &'a [String],
     ex_terms: &'a [String],
-) {
+) -> Vec<String> {
     let base_lines = reader.lines().map_while(Result::ok);
     let mut lines: Box<dyn Iterator<Item = (String, String)> + 'a> = if case_insensitive {
         Box::new(base_lines.map(|line| {
@@ -128,7 +158,5 @@ fn search_on_buffer<'a>(
         lines = Box::new(apply_exclusions(lines, ex_terms));
     }
 
-    for (original, _lower) in lines {
-        println!("{}", original);
-    }
+    return lines.map(|(original, _lower)| original).collect();
 }
