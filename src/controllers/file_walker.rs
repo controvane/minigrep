@@ -5,6 +5,7 @@ pub fn walk(path: &Path) -> Box<dyn Iterator<Item = PathBuf>> {
     let (files, dirs): (Vec<PathBuf>, Vec<PathBuf>) = read_dir(path)
         .unwrap()
         .filter_map(Result::ok)
+        .filter(|e| !matches!(e.file_type(), Ok(ft) if ft.is_symlink()))
         .map(|e| e.path())
         .partition(|p| p.is_file());
 
