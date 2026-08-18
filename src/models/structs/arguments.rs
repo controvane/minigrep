@@ -1,10 +1,10 @@
-use std::path::Path;
-use std::path::PathBuf;
+use crate::models::enums::pos_path::InputSource;
+use std::env;
 
 //The arguments structure the rest of the search works on
 
 pub struct Arguments {
-    pub path: Option<PathBuf>,
+    pub path: InputSource,
     pub or_search_terms: Option<Vec<String>>,
     pub and_search_terms: Option<Vec<String>>,
     pub ex_search_terms: Option<Vec<String>>,
@@ -14,7 +14,9 @@ pub struct Arguments {
 impl Arguments {
     pub fn new() -> Arguments {
         return Arguments {
-            path: None,
+            path: InputSource::Normal(
+                env::current_dir().expect("Really? How did this happened? No cwd?"),
+            ),
             or_search_terms: None,
             and_search_terms: None,
             ex_search_terms: None,
@@ -22,8 +24,8 @@ impl Arguments {
         };
     }
 
-    pub fn get_path(&self) -> &Path {
-        return self.path.as_deref().unwrap_or(Path::new(""));
+    pub fn get_path(&self) -> &InputSource {
+        return &self.path;
     }
 
     pub fn get_search_terms_or(&self) -> &[String] {

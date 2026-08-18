@@ -1,7 +1,7 @@
+use crate::models::enums::pos_path::InputSource;
 use crate::models::structs::arguments::Arguments;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::io::{self, BufRead, BufReader};
 use std::process;
 
 fn apply_or_filters(
@@ -26,27 +26,29 @@ fn apply_exclusions(
 }
 
 pub fn search(arguments: Arguments) {
-    let path = arguments.get_path();
-
-    if path.is_file() {
-        search_on_file(arguments, None);
-        return;
-    }
-
-    println!("Oops! you passed a dir, that is not implemented yet.")
-}
-
-fn search_on_file(arguments: Arguments, path: Option<&Path>) {
-    let path_to_open = path.unwrap_or_else(|| arguments.get_path());
-
-    let reader: Box<dyn BufRead> = match File::open(path_to_open) {
-        Ok(value) => Box::new(BufReader::new(value)),
-        Err(_) => {
-            println!("File was either not found or inexistent.");
-            process::exit(1);
+    match arguments.get_path() {
+        InputSource::Normal(path) => {
+            if path.is_file() {
+                let reader = match File::open(path) {
+                    Ok(file) => Box::new(BufReader::new(file)),
+                    Err(_) => {
+                        println!("File was either not found or inexistent.");
+                        process::exit(1);
+                    }
+                };
+                search_on_buffer(arguments, reader);
+                return;
+            }
+            println!("Oops! this part is not implemented yet!");
+        }
+        InputSource::Stdin => {
+            let reader: Box<dyn BufRead> = Box::new(BufReader::new(io::stdin()));
+            search_on_buffer(arguments, reader);
         }
     };
+}
 
+fn search_on_buffer(arguments: Arguments, reader: Box<dyn BufRead>) {
     let or_terms: Vec<String> = arguments
         .get_search_terms_or()
         .iter()

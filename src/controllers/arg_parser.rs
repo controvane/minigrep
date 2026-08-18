@@ -1,8 +1,10 @@
+use is_terminal::IsTerminal;
 use std::collections::HashMap;
-use std::env;
+use std::io;
 use std::process;
 
 use crate::models::enums::flag_value::FlagValue;
+use crate::models::enums::pos_path::InputSource;
 use crate::models::structs::arguments::Arguments;
 
 pub fn parse_arguments(args: Vec<String>) -> Arguments {
@@ -10,7 +12,6 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
     let required_flags = vec!["-eq", "-c", "-ne"];
     let mut args_iter = args.iter().peekable();
     let mut ret_args = Arguments::new();
-    ret_args.path = Some(env::current_dir().expect("Really? How did this happened? No cwd?"));
 
     while let Some(arg) = args_iter.next() {
         if arg == "-f" {
@@ -91,6 +92,10 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
 
     let mut any_exist: Vec<bool> = vec![false; 3];
 
+    if !arguments.contains_key("-f") && !io::stdin().is_terminal() {
+        ret_args.path = InputSource::Stdin;
+    }
+
     for (i, req) in required_flags.iter().enumerate() {
         if arguments.contains_key(*req) {
             any_exist[i] = true;
@@ -103,7 +108,7 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
     }
 
     if let Some(FlagValue::Path(value)) = arguments.get("-f") {
-        ret_args.path = Some(value.clone());
+        ret_args.path = InputSource::Normal(value.clone());
     }
 
     if let Some(FlagValue::SearchTerms(value)) = arguments.get("-eq") {
