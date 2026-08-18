@@ -71,7 +71,7 @@ pub fn search(arguments: Arguments) {
                 let reader = match File::open(path) {
                     Ok(file) => Box::new(BufReader::new(file)),
                     Err(_) => {
-                        println!("File was either not found or inexistent.");
+                        eprintln!("File was either not found or inexistent.");
                         process::exit(1);
                     }
                 };
@@ -82,7 +82,7 @@ pub fn search(arguments: Arguments) {
                 let reader = match File::open(file_path) {
                     Ok(file) => Box::new(BufReader::new(file)),
                     Err(_) => {
-                        println!("File was either not found or inexistent.");
+                        eprintln!("File was either not found or inexistent.");
                         continue;
                     }
                 };

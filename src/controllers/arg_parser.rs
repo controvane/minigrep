@@ -53,14 +53,14 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
             match args_iter.next() {
                 Some(value) => {
                     if value.chars().next().unwrap_or(' ') == '-' {
-                        println!("Missing search terms after -c.");
+                        eprintln!("Missing search terms after -c.");
                         process::exit(1);
                     }
                     let words = value.split('|').map(|s| s.to_string()).collect();
                     arguments.insert("-c".to_string(), FlagValue::SearchTerms(words));
                 }
                 Option::None => {
-                    println!("Arguments for search required after -c");
+                    eprintln!("Arguments for search required after -c");
                     process::exit(1);
                 }
             }
@@ -69,14 +69,14 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
             match args_iter.next() {
                 Some(value) => {
                     if value.chars().next().unwrap_or(' ') == '-' {
-                        println!("Missing exclude terms after -ne.");
+                        eprintln!("Missing exclude terms after -ne.");
                         process::exit(1);
                     }
                     let words = value.split('|').map(|s| s.to_string()).collect();
                     arguments.insert("-ne".to_string(), FlagValue::SearchTerms(words));
                 }
                 Option::None => {
-                    println!("Arguments for exclusion required after -ne");
+                    eprintln!("Arguments for exclusion required after -ne");
                     process::exit(1);
                 }
             }
@@ -103,7 +103,7 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
     }
 
     if !any_exist.iter().any(|x| *x) {
-        println!("At least one of the search arguments required: -eq, -ne or -c");
+        eprintln!("At least one of the search arguments required: -eq, -ne or -c");
         process::exit(1);
     }
 
