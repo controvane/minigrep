@@ -1,3 +1,4 @@
+use crate::controllers::file_walker::walk;
 use crate::models::enums::pos_path::InputSource;
 use crate::models::structs::arguments::Arguments;
 use std::fs::File;
@@ -36,19 +37,28 @@ pub fn search(arguments: Arguments) {
                         process::exit(1);
                     }
                 };
-                search_on_buffer(arguments, reader);
+                search_on_buffer(&arguments, reader);
                 return;
             }
-            println!("Oops! this part is not implemented yet!");
+            for file_path in walk(path) {
+                let reader = match File::open(file_path) {
+                    Ok(file) => Box::new(BufReader::new(file)),
+                    Err(_) => {
+                        println!("File was either not found or inexistent.");
+                        continue;
+                    }
+                };
+                search_on_buffer(&arguments, reader);
+            }
         }
         InputSource::Stdin => {
             let reader: Box<dyn BufRead> = Box::new(BufReader::new(io::stdin()));
-            search_on_buffer(arguments, reader);
+            search_on_buffer(&arguments, reader);
         }
     };
 }
 
-fn search_on_buffer(arguments: Arguments, reader: Box<dyn BufRead>) {
+fn search_on_buffer(arguments: &Arguments, reader: Box<dyn BufRead>) {
     let or_terms: Vec<String> = arguments
         .get_search_terms_or()
         .iter()
