@@ -1,7 +1,7 @@
 use std::fs::read_dir;
 use std::path::{Path, PathBuf};
 
-pub fn walk(path: &Path) -> Box<dyn Iterator<Item = PathBuf>> {
+pub fn walk(path: &Path) -> Box<dyn Iterator<Item = PathBuf> + Send> {
     let (files, dirs): (Vec<PathBuf>, Vec<PathBuf>) = read_dir(path)
         .unwrap()
         .filter_map(Result::ok)
