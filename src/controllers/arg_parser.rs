@@ -13,12 +13,14 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
     let mut args_iter = args.iter().peekable();
     let mut ret_args = Arguments::new();
 
+    //loop through the argument and flags and organize em
     while let Some(arg) = args_iter.next() {
+        //Optional file or dir path
         if arg == "-f" {
             match args_iter.peek() {
                 Some(value) => {
                     if value.starts_with('-') {
-                        println!("Missing file path after -f flag.");
+                        eprintln!("Missing file path after -f flag.");
                         process::exit(1);
                     }
                     arguments.insert(
@@ -28,11 +30,12 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
                     args_iter.next();
                 }
                 Option::None => {
-                    println!("File path required after -f flag.");
+                    eprintln!("File path required after -f flag.");
                     process::exit(1);
                 }
             }
         }
+        // And terms
         if arg == "-eq" {
             match args_iter.next() {
                 Some(value) => {
@@ -49,6 +52,7 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
                 }
             }
         }
+        //or terms
         if arg == "-c" {
             match args_iter.next() {
                 Some(value) => {
@@ -65,6 +69,7 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
                 }
             }
         }
+        //excluded terms
         if arg == "-ne" {
             match args_iter.next() {
                 Some(value) => {
@@ -81,9 +86,11 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
                 }
             }
         }
+        //case insensiteveness
         if arg == "-i" {
             arguments.insert("-i".to_string(), FlagValue::CaseSensitive(true));
         }
+        //help command
         if arg == "-h" || arg == "--help" {
             print_helper();
             process::exit(0);
@@ -96,6 +103,7 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
         ret_args.path = InputSource::Stdin;
     }
 
+    //check that at least one of the search terms was defined, else crash
     for (i, req) in required_flags.iter().enumerate() {
         if arguments.contains_key(*req) {
             any_exist[i] = true;
@@ -107,6 +115,7 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
         process::exit(1);
     }
 
+    //with the -f if above this builds the Arguments that will be sent
     if let Some(FlagValue::Path(value)) = arguments.get("-f") {
         ret_args.path = InputSource::Normal(value.clone());
     }
@@ -129,6 +138,8 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
 
     return ret_args;
 }
+
+//prints all of the help text
 
 fn print_helper() {
     println!("minigrep is a tiny grep clone project in rust.");

@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::process;
 
+//three functions to apply the filters to and or and xor
 fn apply_or_filters(
     lines: impl Iterator<Item = (String, String)>,
     terms: &[String],
@@ -31,6 +32,8 @@ fn apply_exclusions(
 pub fn search(arguments: Arguments) {
     let case_insensitive = arguments.get_case_insensitive();
 
+    //pulling the terms from arguments and transforming to lower case
+    //for case insensitiveness
     let or_terms: Vec<String> = arguments
         .get_search_terms_or()
         .iter()
@@ -67,8 +70,11 @@ pub fn search(arguments: Arguments) {
         })
         .collect();
 
+    //Because the input can come from two distinct sources
+    //We match with this enum
     match arguments.get_path() {
         InputSource::Normal(path) => {
+            //normal search over one file
             if path.is_file() {
                 let reader = match File::open(path) {
                     Ok(file) => Box::new(BufReader::new(file)),
@@ -86,6 +92,8 @@ pub fn search(arguments: Arguments) {
                 ));
                 return;
             }
+            //Do search over all files on the selected directory on multiple threads
+            //Quickends searhces on directories
             walk(path).par_bridge().for_each(|file_path| {
                 let reader = match File::open(&file_path) {
                     Ok(file) => Box::new(BufReader::new(file)),
@@ -107,6 +115,7 @@ pub fn search(arguments: Arguments) {
                 }
             });
         }
+        //Arm that reads what was piped from another command
         InputSource::Stdin => {
             let reader: Box<dyn BufRead> = Box::new(BufReader::new(io::stdin()));
             print_found_lines(search_on_buffer(
@@ -120,12 +129,17 @@ pub fn search(arguments: Arguments) {
     };
 }
 
+//Cause I did not wanted to use the same code in two different places
+//It just loops and prints over a list of strings.
 fn print_found_lines(found_lines: Vec<String>) {
     for line in found_lines {
         println!("{}", line);
     }
 }
 
+//This is the function that does the search_on_buffer
+//Receives a buffer of the content of the file and compares it
+//with each of the possible search terms in chain
 fn search_on_buffer<'a>(
     case_insensitive: bool,
     reader: Box<dyn BufRead>,

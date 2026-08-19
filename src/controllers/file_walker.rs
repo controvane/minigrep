@@ -1,6 +1,11 @@
 use std::fs::read_dir;
 use std::path::{Path, PathBuf};
 
+//recursive function that returns an threadable iterator
+//If it is a file, it's path is added to the path list
+//If it is a dir, we call walk over it and chain the result of that to what was found previously
+//All on a Box cause we have no ideae how big it is
+//Oh! and it ignores symlinks to avoid non ending loops
 pub fn walk(path: &Path) -> Box<dyn Iterator<Item = PathBuf> + Send> {
     let (files, dirs): (Vec<PathBuf>, Vec<PathBuf>) = read_dir(path)
         .unwrap()
