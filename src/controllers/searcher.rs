@@ -3,34 +3,39 @@ use crate::models::enums::pos_path::InputSource;
 use crate::models::structs::arguments::Arguments;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::ParallelBridge;
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::process;
 
 //three functions to apply the filters to and or and xor
-fn apply_or_filters(
-    lines: impl Iterator<Item = (String, String)>,
-    terms: &[String],
-) -> impl Iterator<Item = (String, String)> {
-    return lines.filter(move |(_orig, lower)| terms.iter().any(|p| lower.contains(p)));
+fn matches_any(lower: &str, terms: &[String]) -> bool {
+    return terms.iter().any(|p| lower.contains(p));
 }
 
-fn apply_and_filters(
-    lines: impl Iterator<Item = (String, String)>,
-    terms: &[String],
-) -> impl Iterator<Item = (String, String)> {
-    return lines.filter(move |(_orig, lower)| terms.iter().all(|p| lower.contains(p)));
+fn matches_all(lower: &str, terms: &[String]) -> bool {
+    return terms.iter().all(|p| lower.contains(p));
 }
 
-fn apply_exclusions(
-    lines: impl Iterator<Item = (String, String)>,
-    terms: &[String],
-) -> impl Iterator<Item = (String, String)> {
-    return lines.filter(move |(_orig, lower)| !terms.iter().any(|p| lower.contains(p)));
+fn matches_none(lower: &str, terms: &[String]) -> bool {
+    return !terms.iter().any(|p| lower.contains(p));
+}
+
+fn line_matches(
+    lower: &str,
+    or_terms: &[String],
+    and_terms: &[String],
+    ex_terms: &[String],
+) -> bool {
+    return (or_terms.is_empty() || matches_any(lower, or_terms))
+        && (and_terms.is_empty() || matches_all(lower, and_terms))
+        && (ex_terms.is_empty() || matches_none(lower, ex_terms));
 }
 
 pub fn search(arguments: Arguments) {
     let case_insensitive = arguments.get_case_insensitive();
+    let before_lines = arguments.get_before_lines();
+    let after_lines = arguments.get_after_lines();
 
     //pulling the terms from arguments and transforming to lower case
     //for case insensitiveness
@@ -89,6 +94,8 @@ pub fn search(arguments: Arguments) {
                     &or_terms,
                     &and_terms,
                     &ex_terms,
+                    before_lines,
+                    after_lines,
                 ));
                 return;
             }
@@ -102,9 +109,17 @@ pub fn search(arguments: Arguments) {
                         return;
                     }
                 };
-                let lines =
-                    search_on_buffer(case_insensitive, reader, &or_terms, &and_terms, &ex_terms);
-                if lines.is_empty() {
+                let mut lines = search_on_buffer(
+                    case_insensitive,
+                    reader,
+                    &or_terms,
+                    &and_terms,
+                    &ex_terms,
+                    before_lines,
+                    after_lines,
+                )
+                .peekable();
+                if lines.peek().is_none() {
                     return;
                 }
                 let stdout = io::stdout();
@@ -124,6 +139,8 @@ pub fn search(arguments: Arguments) {
                 &or_terms,
                 &and_terms,
                 &ex_terms,
+                before_lines,
+                after_lines,
             ));
         }
     };
@@ -131,7 +148,7 @@ pub fn search(arguments: Arguments) {
 
 //Cause I did not wanted to use the same code in two different places
 //It just loops and prints over a list of strings.
-fn print_found_lines(found_lines: Vec<String>) {
+fn print_found_lines(found_lines: impl Iterator<Item = String>) {
     for line in found_lines {
         println!("{}", line);
     }
@@ -139,38 +156,63 @@ fn print_found_lines(found_lines: Vec<String>) {
 
 //This is the function that does the search_on_buffer
 //Receives a buffer of the content of the file and compares it
-//with each of the possible search terms in chain
-fn search_on_buffer<'a>(
+fn search_on_buffer(
     case_insensitive: bool,
     reader: Box<dyn BufRead>,
-    or_terms: &'a [String],
-    and_terms: &'a [String],
-    ex_terms: &'a [String],
-) -> Vec<String> {
-    let base_lines = reader.lines().map_while(Result::ok);
-    let mut lines: Box<dyn Iterator<Item = (String, String)> + 'a> = if case_insensitive {
-        Box::new(base_lines.map(|line| {
-            let lower = line.to_lowercase();
-            return (line, lower);
-        }))
-    } else {
-        Box::new(base_lines.map(|line| {
-            let clone = line.clone();
-            return (line, clone);
-        }))
-    };
+    or_terms: &[String],
+    and_terms: &[String],
+    ex_terms: &[String],
+    before_lines: u16,
+    after_lines: u16,
+) -> impl Iterator<Item = String> {
+    let before = before_lines as usize;
+    let mut before_buf: VecDeque<String> = VecDeque::with_capacity(before);
+    let mut after_left: u16 = 0;
+    let mut gap = false;
+    let mut emitted_any = false;
 
-    if or_terms.len() > 0 {
-        lines = Box::new(apply_or_filters(lines, or_terms));
-    }
+    return reader.lines().map_while(Result::ok).flat_map(move |line| {
+        let lower = if case_insensitive {
+            line.to_lowercase()
+        } else {
+            line.clone()
+        };
 
-    if and_terms.len() > 0 {
-        lines = Box::new(apply_and_filters(lines, and_terms));
-    }
+        if line_matches(&lower, or_terms, and_terms, ex_terms) {
+            let mut block = Vec::new();
 
-    if ex_terms.len() > 0 {
-        lines = Box::new(apply_exclusions(lines, ex_terms));
-    }
+            //A fresh group after skipped lines needs a separator. The
+            //first group gets no leading separator, and a match inside an
+            //ongoing after-window is a continuation, so skip it then too.
+            if after_left == 0 && gap && emitted_any && (after_lines + before_lines) > 0 {
+                block.push("--".to_string());
+            }
 
-    return lines.map(|(original, _lower)| original).collect();
+            //Emit the before-context we have been holding.
+            block.extend(before_buf.drain(..));
+
+            //And the matched line itself.
+            block.push(line);
+
+            after_left = after_lines;
+            gap = false;
+            emitted_any = true;
+            return block;
+        }
+
+        if after_left > 0 {
+            //After-context: emit it and count down.
+            after_left -= 1;
+            return vec![line];
+        }
+
+        //Not a match and not after-context: hold it as a before-context
+        //candidate, dropping the oldest when the buffer overflows.
+        before_buf.push_back(line);
+        if before_buf.len() > before {
+            before_buf.pop_front();
+            gap = true;
+        }
+        return Vec::new();
+    });
 }

@@ -8,4 +8,5 @@ pub enum FlagValue {
     Path(PathBuf),
     SearchTerms(Vec<String>),
     CaseSensitive(bool),
+    ExtraLines(u16),
 }

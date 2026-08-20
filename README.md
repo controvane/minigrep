@@ -33,6 +33,8 @@ mgrep [OPTIONS]
 | `-eq TERMS`| "And" search terms, `\|`-separated. Lines matching all are shown.            |
 | `-ne TERMS`| Excluded terms, `\|`-separated. Matching lines are hidden.                   |
 | `-i`       | Case-insensitive search.                                                    |
+| `-a N`     | Print N lines after each match as context.                                  |
+| `-b N`     | Print N lines before each match as context.                                 |
 | `-h`       | Print help.                                                                |
 
 At least one of `-c`, `-eq`, or `-ne` is required.
@@ -57,6 +59,9 @@ mgrep -c fn -ne deprecated -f src
 
 # Search piped stdin
 cat poem.txt | mgrep -c nobody -i
+
+# Show 2 lines of context before and after each match
+mgrep -c nobody -b 2 -a 2 -f poem.txt
 ```
 
 ## Installation
@@ -92,3 +97,5 @@ Removes the binary from `~/.local/bin` and strips the PATH export line that
   matches are omitted.
 - Searching is memory-bounded: each file is streamed line-by-line, never
   loaded wholly into memory.
+- Context lines (`-a`/`-b`) expand each match with the surrounding lines, kept
+  in a small sliding buffer; disjoint groups of output are separated by `--`.
