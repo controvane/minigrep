@@ -90,6 +90,44 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
         if arg == "-i" {
             arguments.insert("-i".to_string(), FlagValue::CaseSensitive(true));
         }
+        //amount for lines included after the matched line
+        if arg == "-a" {
+            match args_iter.next() {
+                Some(a) => {
+                    let after: u16 = match a.parse() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            eprintln!("A positive number is needed for lines after.");
+                            process::exit(1);
+                        }
+                    };
+                    arguments.insert("-a".to_string(), FlagValue::ExtraLines(after));
+                }
+                Option::None => {
+                    eprintln!("An amount of lines after the match needed for -a");
+                    process::exit(1);
+                }
+            }
+        }
+        //amount for lines included after the matched line
+        if arg == "-b" {
+            match args_iter.next() {
+                Some(b) => {
+                    let before: u16 = match b.parse() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            eprintln!("A positive number is needed for lines before.");
+                            process::exit(1);
+                        }
+                    };
+                    arguments.insert("-b".to_string(), FlagValue::ExtraLines(before));
+                }
+                Option::None => {
+                    eprintln!("An amount of lines before the match needed for -b");
+                    process::exit(1);
+                }
+            }
+        }
         //help command
         if arg == "-h" || arg == "--help" {
             print_helper();
@@ -136,6 +174,14 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
         ret_args.case_insensitive = *value;
     }
 
+    if let Some(FlagValue::ExtraLines(value)) = arguments.get("-a") {
+        ret_args.after_lines = *value;
+    }
+
+    if let Some(FlagValue::ExtraLines(value)) = arguments.get("-b") {
+        ret_args.before_lines = *value;
+    }
+
     return ret_args;
 }
 
@@ -159,4 +205,6 @@ fn print_helper() {
     println!(
         "-ne: Excluded terms. Lines with this terms will be excluded from the output. Even if other search criteria found them."
     );
+    println!("-a: Number of lines to print after each match as context. E.g: -a 2");
+    println!("-b: Number of lines to print before each match as context. E.g: -b 2");
 }
