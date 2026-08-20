@@ -185,14 +185,14 @@ fn search_on_buffer(
             //first group gets no leading separator, and a match inside an
             //ongoing after-window is a continuation, so skip it then too.
             if after_left == 0 && gap && emitted_any && (after_lines + before_lines) > 0 {
-                block.push("--".to_string());
+                block.push("\t.\n\t.\n\t.".to_string());
             }
 
             //Emit the before-context we have been holding.
-            block.extend(before_buf.drain(..));
+            block.extend(before_buf.drain(..).map(|elem| elem.trim().to_string()));
 
             //And the matched line itself.
-            block.push(line);
+            block.push(line.trim().to_string());
 
             after_left = after_lines;
             gap = false;
@@ -203,7 +203,7 @@ fn search_on_buffer(
         if after_left > 0 {
             //After-context: emit it and count down.
             after_left -= 1;
-            return vec![line];
+            return vec![line.trim().to_string()];
         }
 
         //Not a match and not after-context: hold it as a before-context
