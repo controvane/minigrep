@@ -1,8 +1,7 @@
 use crate::controllers::file_walker::walk;
 use crate::models::enums::pos_path::InputSource;
 use crate::models::structs::arguments::Arguments;
-use rayon::iter::ParallelIterator;
-use rayon::prelude::ParallelBridge;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
@@ -108,35 +107,37 @@ pub fn search(arguments: Arguments) {
             }
             //Do search over all files on the selected directory on multiple threads
             //Quickends searhces on directories
-            walk(path, &file_types).par_bridge().for_each(|file_path| {
-                let reader = match File::open(&file_path) {
-                    Ok(file) => Box::new(BufReader::new(file)),
-                    Err(_) => {
-                        eprintln!("File was either not found or inexistent.");
+            walk(path, &file_types)
+                .into_par_iter()
+                .for_each(|file_path| {
+                    let reader = match File::open(&file_path) {
+                        Ok(file) => Box::new(BufReader::new(file)),
+                        Err(_) => {
+                            eprintln!("File was either not found or inexistent.");
+                            return;
+                        }
+                    };
+                    let mut lines = search_on_buffer(
+                        case_insensitive,
+                        reader,
+                        &or_terms,
+                        &and_terms,
+                        &ex_terms,
+                        before_lines,
+                        after_lines,
+                        num_lines,
+                    )
+                    .peekable();
+                    if lines.peek().is_none() {
                         return;
                     }
-                };
-                let mut lines = search_on_buffer(
-                    case_insensitive,
-                    reader,
-                    &or_terms,
-                    &and_terms,
-                    &ex_terms,
-                    before_lines,
-                    after_lines,
-                    num_lines,
-                )
-                .peekable();
-                if lines.peek().is_none() {
-                    return;
-                }
-                let stdout = io::stdout();
-                let mut out = stdout.lock();
-                writeln!(out, "{}: ", file_path.display()).unwrap();
-                for line in lines {
-                    writeln!(out, "\t{}", line).unwrap();
-                }
-            });
+                    let stdout = io::stdout();
+                    let mut out = stdout.lock();
+                    writeln!(out, "{}: ", file_path.display()).unwrap();
+                    for line in lines {
+                        writeln!(out, "\t{}", line).unwrap();
+                    }
+                });
         }
         //Arm that reads what was piped from another command
         InputSource::Stdin => {
@@ -186,18 +187,18 @@ fn search_on_buffer(
         .map_while(Result::ok)
         .enumerate()
         .flat_map(move |(index, line)| {
-            let lower = if case_insensitive {
-                line.to_lowercase()
-            } else {
-                line.clone()
-            };
+            //Creating a reference of the line to lowercase in case there is case_insensitiveness
+            let low_temp = case_insensitive.then(|| line.to_lowercase());
+            let lower = low_temp.as_deref().unwrap_or(&line);
 
-            if line_matches(&lower, or_terms, and_terms, ex_terms) {
+            if line_matches(lower, or_terms, and_terms, ex_terms) {
                 let mut block = Vec::new();
 
                 //A fresh group after skipped lines needs a separator. The
                 //first group gets no leading separator, and a match inside an
                 //ongoing after-window is a continuation, so skip it then too.
+                //of course, if no after or before lines exist, this
+                //separator does not either.
                 if after_left == 0 && gap && emitted_any && (after_lines + before_lines) > 0 {
                     block.push("\t.\n\t.\n\t.".to_string());
                 }
