@@ -88,7 +88,10 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
         }
         //case insensiteveness
         if arg == "-i" {
-            arguments.insert("-i".to_string(), FlagValue::CaseSensitive(true));
+            arguments.insert("-i".to_string(), FlagValue::EnableDisable(true));
+        }
+        if arg == "-n" {
+            arguments.insert("-n".to_string(), FlagValue::EnableDisable(true));
         }
         //amount for lines included after the matched line
         if arg == "-a" {
@@ -170,7 +173,7 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
         ret_args.ex_search_terms = Some(value.clone())
     }
 
-    if let Some(FlagValue::CaseSensitive(value)) = arguments.get("-i") {
+    if let Some(FlagValue::EnableDisable(value)) = arguments.get("-i") {
         ret_args.case_insensitive = *value;
     }
 
@@ -180,6 +183,10 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
 
     if let Some(FlagValue::ExtraLines(value)) = arguments.get("-b") {
         ret_args.before_lines = *value;
+    }
+
+    if let Some(FlagValue::EnableDisable(value)) = arguments.get("-n") {
+        ret_args.numerate_lines = *value;
     }
 
     return ret_args;
@@ -207,4 +214,7 @@ fn print_helper() {
     );
     println!("-a: Number of lines to print after each match as context. E.g: -a 2");
     println!("-b: Number of lines to print before each match as context. E.g: -b 2");
+    println!(
+        "-n: If this flag is added, the number of the line will be printed before the matching line itself."
+    );
 }

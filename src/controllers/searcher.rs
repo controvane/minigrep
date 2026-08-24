@@ -36,6 +36,7 @@ pub fn search(arguments: Arguments) {
     let case_insensitive = arguments.get_case_insensitive();
     let before_lines = arguments.get_before_lines();
     let after_lines = arguments.get_after_lines();
+    let num_lines = arguments.get_numerate_lines();
 
     //pulling the terms from arguments and transforming to lower case
     //for case insensitiveness
@@ -96,6 +97,7 @@ pub fn search(arguments: Arguments) {
                     &ex_terms,
                     before_lines,
                     after_lines,
+                    num_lines,
                 ));
                 return;
             }
@@ -117,6 +119,7 @@ pub fn search(arguments: Arguments) {
                     &ex_terms,
                     before_lines,
                     after_lines,
+                    num_lines,
                 )
                 .peekable();
                 if lines.peek().is_none() {
@@ -141,6 +144,7 @@ pub fn search(arguments: Arguments) {
                 &ex_terms,
                 before_lines,
                 after_lines,
+                num_lines,
             ));
         }
     };
@@ -164,55 +168,76 @@ fn search_on_buffer(
     ex_terms: &[String],
     before_lines: u16,
     after_lines: u16,
+    numerate_lines: bool,
 ) -> impl Iterator<Item = String> {
     let before = before_lines as usize;
-    let mut before_buf: VecDeque<String> = VecDeque::with_capacity(before);
+    let mut before_buf: VecDeque<(usize, String)> = VecDeque::with_capacity(before);
     let mut after_left: u16 = 0;
     let mut gap = false;
     let mut emitted_any = false;
 
-    return reader.lines().map_while(Result::ok).flat_map(move |line| {
-        let lower = if case_insensitive {
-            line.to_lowercase()
-        } else {
-            line.clone()
-        };
+    return reader
+        .lines()
+        .map_while(Result::ok)
+        .enumerate()
+        .flat_map(move |(index, line)| {
+            let lower = if case_insensitive {
+                line.to_lowercase()
+            } else {
+                line.clone()
+            };
 
-        if line_matches(&lower, or_terms, and_terms, ex_terms) {
-            let mut block = Vec::new();
+            if line_matches(&lower, or_terms, and_terms, ex_terms) {
+                let mut block = Vec::new();
 
-            //A fresh group after skipped lines needs a separator. The
-            //first group gets no leading separator, and a match inside an
-            //ongoing after-window is a continuation, so skip it then too.
-            if after_left == 0 && gap && emitted_any && (after_lines + before_lines) > 0 {
-                block.push("\t.\n\t.\n\t.".to_string());
+                //A fresh group after skipped lines needs a separator. The
+                //first group gets no leading separator, and a match inside an
+                //ongoing after-window is a continuation, so skip it then too.
+                if after_left == 0 && gap && emitted_any && (after_lines + before_lines) > 0 {
+                    block.push("\t.\n\t.\n\t.".to_string());
+                }
+
+                //Emit the before-context we have been holding.
+                block.extend(before_buf.drain(..).map(|(i, elem)| {
+                    if numerate_lines {
+                        return format!("{}: {}", i + 1, elem.trim()).to_string();
+                    }
+                    return elem.trim().to_string();
+                }));
+
+                let pushable_line = if numerate_lines {
+                    format!("{}: {}", index + 1, line.trim()).to_string()
+                } else {
+                    line.trim().to_string()
+                };
+
+                //And the matched line itself.
+                block.push(pushable_line);
+
+                after_left = after_lines;
+                gap = false;
+                emitted_any = true;
+                return block;
             }
 
-            //Emit the before-context we have been holding.
-            block.extend(before_buf.drain(..).map(|elem| elem.trim().to_string()));
+            if after_left > 0 {
+                let pushable_line = if numerate_lines {
+                    format!("{}: {}", index + 1, line.trim()).to_string()
+                } else {
+                    line.trim().to_string()
+                };
+                //After-context: emit it and count down.
+                after_left -= 1;
+                return vec![pushable_line];
+            }
 
-            //And the matched line itself.
-            block.push(line.trim().to_string());
-
-            after_left = after_lines;
-            gap = false;
-            emitted_any = true;
-            return block;
-        }
-
-        if after_left > 0 {
-            //After-context: emit it and count down.
-            after_left -= 1;
-            return vec![line.trim().to_string()];
-        }
-
-        //Not a match and not after-context: hold it as a before-context
-        //candidate, dropping the oldest when the buffer overflows.
-        before_buf.push_back(line);
-        if before_buf.len() > before {
-            before_buf.pop_front();
-            gap = true;
-        }
-        return Vec::new();
-    });
+            //Not a match and not after-context: hold it as a before-context
+            //candidate, dropping the oldest when the buffer overflows.
+            before_buf.push_back((index, line));
+            if before_buf.len() > before {
+                before_buf.pop_front();
+                gap = true;
+            }
+            return Vec::new();
+        });
 }

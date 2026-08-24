@@ -12,6 +12,7 @@ pub struct Arguments {
     pub case_insensitive: bool,
     pub before_lines: u16,
     pub after_lines: u16,
+    pub numerate_lines: bool,
 }
 
 impl Arguments {
@@ -30,6 +31,7 @@ impl Arguments {
             case_insensitive: false,
             before_lines: 0,
             after_lines: 0,
+            numerate_lines: false,
         };
     }
 
@@ -59,5 +61,9 @@ impl Arguments {
 
     pub fn get_after_lines(&self) -> u16 {
         return self.after_lines;
+    }
+
+    pub fn get_numerate_lines(&self) -> bool {
+        return self.numerate_lines;
     }
 }

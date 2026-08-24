@@ -7,6 +7,6 @@ use std::path::PathBuf;
 pub enum FlagValue {
     Path(PathBuf),
     SearchTerms(Vec<String>),
-    CaseSensitive(bool),
+    EnableDisable(bool),
     ExtraLines(u16),
 }
