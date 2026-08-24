@@ -90,9 +90,6 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
         if arg == "-i" {
             arguments.insert("-i".to_string(), FlagValue::EnableDisable(true));
         }
-        if arg == "-n" {
-            arguments.insert("-n".to_string(), FlagValue::EnableDisable(true));
-        }
         //amount for lines included after the matched line
         if arg == "-a" {
             match args_iter.next() {
@@ -127,6 +124,27 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
                 }
                 Option::None => {
                     eprintln!("An amount of lines before the match needed for -b");
+                    process::exit(1);
+                }
+            }
+        }
+        //If the output should show the line number of the printed lines.
+        if arg == "-n" {
+            arguments.insert("-n".to_string(), FlagValue::EnableDisable(true));
+        }
+        //List of file types to search through.
+        if arg == "-t" {
+            match args_iter.next() {
+                Some(value) => {
+                    if value.chars().next().unwrap_or(' ') == '-' {
+                        eprintln!("Missing file types after -t.");
+                        process::exit(1);
+                    }
+                    let types = value.split('|').map(|s| s.to_string()).collect();
+                    arguments.insert("-t".to_string(), FlagValue::SearchTerms(types));
+                }
+                Option::None => {
+                    eprintln!("File types required for -t.");
                     process::exit(1);
                 }
             }
@@ -189,6 +207,12 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
         ret_args.numerate_lines = *value;
     }
 
+    //TODO: Have to add some way of checking if it is an actual search through a directory
+    //If it is just a file or stdin, this filter makes no sense.
+    if let Some(FlagValue::SearchTerms(value)) = arguments.get("-t") {
+        ret_args.file_types = Some(value.clone());
+    }
+
     return ret_args;
 }
 
@@ -217,4 +241,7 @@ fn print_helper() {
     println!(
         "-n: If this flag is added, the number of the line will be printed before the matching line itself."
     );
+    println!(
+        "-t: List of different file types to search. If passed output of other program or having given the path to a file, this flag is ignored."
+    )
 }

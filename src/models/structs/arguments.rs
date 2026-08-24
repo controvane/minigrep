@@ -13,6 +13,7 @@ pub struct Arguments {
     pub before_lines: u16,
     pub after_lines: u16,
     pub numerate_lines: bool,
+    pub file_types: Option<Vec<String>>,
 }
 
 impl Arguments {
@@ -32,6 +33,7 @@ impl Arguments {
             before_lines: 0,
             after_lines: 0,
             numerate_lines: false,
+            file_types: None,
         };
     }
 
@@ -65,5 +67,9 @@ impl Arguments {
 
     pub fn get_numerate_lines(&self) -> bool {
         return self.numerate_lines;
+    }
+
+    pub fn get_file_types(&self) -> &[String] {
+        return self.file_types.as_deref().unwrap_or_default();
     }
 }

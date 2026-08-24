@@ -37,6 +37,11 @@ pub fn search(arguments: Arguments) {
     let before_lines = arguments.get_before_lines();
     let after_lines = arguments.get_after_lines();
     let num_lines = arguments.get_numerate_lines();
+    let file_types: Vec<&str> = arguments
+        .get_file_types()
+        .iter()
+        .map(|elem| elem.as_str())
+        .collect();
 
     //pulling the terms from arguments and transforming to lower case
     //for case insensitiveness
@@ -103,7 +108,7 @@ pub fn search(arguments: Arguments) {
             }
             //Do search over all files on the selected directory on multiple threads
             //Quickends searhces on directories
-            walk(path).par_bridge().for_each(|file_path| {
+            walk(path, &file_types).par_bridge().for_each(|file_path| {
                 let reader = match File::open(&file_path) {
                     Ok(file) => Box::new(BufReader::new(file)),
                     Err(_) => {

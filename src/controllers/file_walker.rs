@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fs::read_dir;
 use std::path::{Path, PathBuf};
 
@@ -6,7 +7,10 @@ use std::path::{Path, PathBuf};
 //If it is a dir, we call walk over it and chain the result of that to what was found previously
 //All on a Box cause we have no ideae how big it is
 //Oh! and it ignores symlinks to avoid non ending loops
-pub fn walk(path: &Path) -> Box<dyn Iterator<Item = PathBuf> + Send> {
+pub fn walk<'a>(
+    path: &Path,
+    file_types: &'a [&str],
+) -> Box<dyn Iterator<Item = PathBuf> + Send + 'a> {
     let (files, dirs): (Vec<PathBuf>, Vec<PathBuf>) = read_dir(path)
         .unwrap()
         .filter_map(Result::ok)
@@ -17,6 +21,12 @@ pub fn walk(path: &Path) -> Box<dyn Iterator<Item = PathBuf> + Send> {
     return Box::new(
         files
             .into_iter()
-            .chain(dirs.into_iter().flat_map(|d| walk(&d))),
+            .filter(|f| {
+                file_types.is_empty()
+                    || f.extension().is_some_and(|ext| {
+                        return file_types.iter().any(|t| ext == OsStr::new(t));
+                    })
+            })
+            .chain(dirs.into_iter().flat_map(|d| walk(&d, file_types))),
     );
 }

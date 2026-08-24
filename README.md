@@ -36,6 +36,8 @@ mgrp [OPTIONS]
 | `-a N`     | Print N lines after each match as context.                                  |
 | `-b N`     | Print N lines before each match as context.                                 |
 | `-h`       | Print help.                                                                |
+| `-n`     | Show line number together with the line                                     |
+| `-t`     | List of file types to include in search. If passing a file with -f or piping output of other program, this flag is ignored. separated by `\|` |
 
 At least one of `-c`, `-eq`, or `-ne` is required.
 
@@ -49,10 +51,10 @@ instead.
 mgrp -c nobody -i -f poem.txt
 
 # "Or" search: lines containing "fn" or "pub" in all files under src/
-mgrp -c fn|pub -f src
+mgrp -c "fn|pub" -f src
 
 # "And" search: lines containing both "fn" and "search"
-mgrp -eq fn|search -f src
+mgrp -eq "fn|search" -f src
 
 # Exclude lines with a term
 mgrp -c fn -ne deprecated -f src
@@ -95,6 +97,7 @@ Removes the binary from `~/.local/bin` and strips the PATH export line that
 ## How it works
 
 - `walk` recursively collects files, skipping symlinks.
+- it also filters the filetypes if any are given. Else, the list of paths is just kept as is.
 - The file list is searched in parallel using rayon's thread pool.
 - Results are grouped per file and printed as they complete; files with no
   matches are omitted.
