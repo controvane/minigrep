@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Install script for mgrep.
+# Install script for mgrp.
 # Copies the release binary to ~/.local/bin and ensures the directory
 # is on the PATH. Works on Linux and macOS.
 #
@@ -8,7 +8,7 @@
 #
 set -euo pipefail
 
-BIN_NAME="mgrep"
+BIN_NAME="mgrp"
 BIN_DIR="${HOME}/.local/bin"
 DEST="${BIN_DIR}/${BIN_NAME}"
 
@@ -19,7 +19,7 @@ SOURCE="${SCRIPT_DIR}/release/${BIN_NAME}"
 
 if [[ ! -f "${SOURCE}" ]]; then
     echo "error: release binary not found at ${SOURCE}" >&2
-    echo "Run 'cargo build --release' then copy it here with 'cp target/release/mgrep release/mgrep'." >&2
+    echo "Run 'cargo build --release' then copy it here with 'cp target/release/mgrp release/mgrp'." >&2
     exit 1
 fi
 
@@ -64,7 +64,7 @@ esac
 
 # Guard against double-adding on repeated runs.
 if ! grep -qF "export PATH=\"${BIN_DIR}" "${RC_FILE}" 2>/dev/null; then
-    printf '\n# Added by mgrep installer\nexport PATH="%s:$PATH"\n' "${BIN_DIR}" >> "${RC_FILE}"
+    printf '\n# Added by mgrp installer\nexport PATH="%s:$PATH"\n' "${BIN_DIR}" >> "${RC_FILE}"
     echo "Added PATH export to ${RC_FILE}"
 else
     echo "PATH export already present in ${RC_FILE}"

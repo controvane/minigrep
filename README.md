@@ -10,18 +10,18 @@ searches.
 cargo build --release
 ```
 
-The release binary is produced at `target/release/mgrep`. Copy it into the
+The release binary is produced at `target/release/mgrp`. Copy it into the
 tracked `release/` directory when you want to distribute it:
 
 ```bash
 cargo build --release
-cp target/release/mgrep release/mgrep
+cp target/release/mgrp release/mgrp
 ```
 
 ## Usage
 
 ```
-mgrep [OPTIONS]
+mgrp [OPTIONS]
 ```
 
 ### Options
@@ -46,22 +46,22 @@ instead.
 
 ```bash
 # Case-insensitive search for "nobody" in a single file
-mgrep -c nobody -i -f poem.txt
+mgrp -c nobody -i -f poem.txt
 
 # "Or" search: lines containing "fn" or "pub" in all files under src/
-mgrep -c fn|pub -f src
+mgrp -c fn|pub -f src
 
 # "And" search: lines containing both "fn" and "search"
-mgrep -eq fn|search -f src
+mgrp -eq fn|search -f src
 
 # Exclude lines with a term
-mgrep -c fn -ne deprecated -f src
+mgrp -c fn -ne deprecated -f src
 
 # Search piped stdin
-cat poem.txt | mgrep -c nobody -i
+cat poem.txt | mgrp -c nobody -i
 
 # Show 2 lines of context before and after each match
-mgrep -c nobody -b 2 -a 2 -f poem.txt
+mgrp -c nobody -b 2 -a 2 -f poem.txt
 ```
 
 ## Installation
@@ -72,13 +72,16 @@ Install the release binary to `~/.local/bin` and ensure it is on your PATH:
 ./install.sh
 ```
 
-This copies `release/mgrep` to `~/.local/bin/mgrep` and appends the
+This copies `release/mgrp` to `~/.local/bin/mgrp` and appends the
 `~/.local/bin` PATH export to your shell configuration (`.bashrc`,
 `.bash_profile`, or `.zshrc`) if it is not already present. It is safe to
 re-run after updating the binary — it overwrites the installed copy in place.
 
-> Requires a release binary in `release/mgrep` first. After rebuilding, copy
-> it there with `cp target/release/mgrep release/mgrep`.
+> Requires a release binary in `release/mgrp` first. After rebuilding, copy
+> it there with `cp target/release/mgrp release/mgrp`.
+
+The uninstall script also removes a previously installed `mgrep` binary, so it
+is safe to run after upgrading from the old name.
 
 ## Uninstall
 

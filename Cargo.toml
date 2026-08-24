@@ -8,6 +8,6 @@ is-terminal = "0.4.17"
 rayon = "1.12.0"
 
 [[bin]]
-name = "mgrep"
+name = "mgrp"
 path = "src/main.rs"
 
