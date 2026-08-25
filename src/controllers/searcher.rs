@@ -1,5 +1,6 @@
 use crate::controllers::file_walker::walk;
 use crate::models::enums::pos_path::InputSource;
+use crate::models::enums::search_mode::SearchMode;
 use crate::models::structs::arguments::Arguments;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::collections::VecDeque;
@@ -8,31 +9,30 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::process;
 
 //three functions to apply the filters to and or and xor
-fn matches_any(lower: &str, terms: &[String]) -> bool {
-    return terms.iter().any(|p| lower.contains(p));
+fn matches_any(line: &str, terms: &[SearchMode]) -> bool {
+    return terms.iter().any(|term| term.matches(line));
 }
 
-fn matches_all(lower: &str, terms: &[String]) -> bool {
-    return terms.iter().all(|p| lower.contains(p));
+fn matches_all(line: &str, terms: &[SearchMode]) -> bool {
+    return terms.iter().all(|term| term.matches(line));
 }
 
-fn matches_none(lower: &str, terms: &[String]) -> bool {
-    return !terms.iter().any(|p| lower.contains(p));
+fn matches_none(line: &str, terms: &[SearchMode]) -> bool {
+    return !terms.iter().any(|term| term.matches(line));
 }
 
 fn line_matches(
-    lower: &str,
-    or_terms: &[String],
-    and_terms: &[String],
-    ex_terms: &[String],
+    line: &str,
+    or_terms: &[SearchMode],
+    and_terms: &[SearchMode],
+    ex_terms: &[SearchMode],
 ) -> bool {
-    return (or_terms.is_empty() || matches_any(lower, or_terms))
-        && (and_terms.is_empty() || matches_all(lower, and_terms))
-        && (ex_terms.is_empty() || matches_none(lower, ex_terms));
+    return (or_terms.is_empty() || matches_any(line, or_terms))
+        && (and_terms.is_empty() || matches_all(line, and_terms))
+        && (ex_terms.is_empty() || matches_none(line, ex_terms));
 }
 
 pub fn search(arguments: Arguments) {
-    let case_insensitive = arguments.get_case_insensitive();
     let before_lines = arguments.get_before_lines();
     let after_lines = arguments.get_after_lines();
     let num_lines = arguments.get_numerate_lines();
@@ -44,41 +44,11 @@ pub fn search(arguments: Arguments) {
 
     //pulling the terms from arguments and transforming to lower case
     //for case insensitiveness
-    let or_terms: Vec<String> = arguments
-        .get_search_terms_or()
-        .iter()
-        .map(|x| {
-            if case_insensitive {
-                return x.to_lowercase();
-            } else {
-                return x.clone();
-            }
-        })
-        .collect();
+    let or_terms = arguments.get_search_terms_or();
 
-    let and_terms: Vec<String> = arguments
-        .get_search_terms_and()
-        .iter()
-        .map(|x| {
-            if case_insensitive {
-                return x.to_lowercase();
-            } else {
-                return x.clone();
-            }
-        })
-        .collect();
+    let and_terms = arguments.get_search_terms_and();
 
-    let ex_terms: Vec<String> = arguments
-        .get_search_terms_ex()
-        .iter()
-        .map(|x| {
-            if case_insensitive {
-                return x.to_lowercase();
-            } else {
-                return x.clone();
-            }
-        })
-        .collect();
+    let ex_terms = arguments.get_search_terms_ex();
 
     //Because the input can come from two distinct sources
     //We match with this enum
@@ -94,11 +64,10 @@ pub fn search(arguments: Arguments) {
                     }
                 };
                 print_found_lines(search_on_buffer(
-                    case_insensitive,
                     reader,
-                    &or_terms,
-                    &and_terms,
-                    &ex_terms,
+                    or_terms,
+                    and_terms,
+                    ex_terms,
                     before_lines,
                     after_lines,
                     num_lines,
@@ -118,11 +87,10 @@ pub fn search(arguments: Arguments) {
                         }
                     };
                     let mut lines = search_on_buffer(
-                        case_insensitive,
                         reader,
-                        &or_terms,
-                        &and_terms,
-                        &ex_terms,
+                        or_terms,
+                        and_terms,
+                        ex_terms,
                         before_lines,
                         after_lines,
                         num_lines,
@@ -143,11 +111,10 @@ pub fn search(arguments: Arguments) {
         InputSource::Stdin => {
             let reader: Box<dyn BufRead> = Box::new(BufReader::new(io::stdin()));
             print_found_lines(search_on_buffer(
-                case_insensitive,
                 reader,
-                &or_terms,
-                &and_terms,
-                &ex_terms,
+                or_terms,
+                and_terms,
+                ex_terms,
                 before_lines,
                 after_lines,
                 num_lines,
@@ -167,11 +134,10 @@ fn print_found_lines(found_lines: impl Iterator<Item = String>) {
 //This is the function that does the search_on_buffer
 //Receives a buffer of the content of the file and compares it
 fn search_on_buffer(
-    case_insensitive: bool,
     reader: Box<dyn BufRead>,
-    or_terms: &[String],
-    and_terms: &[String],
-    ex_terms: &[String],
+    or_terms: &[SearchMode],
+    and_terms: &[SearchMode],
+    ex_terms: &[SearchMode],
     before_lines: u16,
     after_lines: u16,
     numerate_lines: bool,
@@ -187,11 +153,7 @@ fn search_on_buffer(
         .map_while(Result::ok)
         .enumerate()
         .flat_map(move |(index, line)| {
-            //Creating a reference of the line to lowercase in case there is case_insensitiveness
-            let low_temp = case_insensitive.then(|| line.to_lowercase());
-            let lower = low_temp.as_deref().unwrap_or(&line);
-
-            if line_matches(lower, or_terms, and_terms, ex_terms) {
+            if line_matches(&line, or_terms, and_terms, ex_terms) {
                 let mut block = Vec::new();
 
                 //A fresh group after skipped lines needs a separator. The

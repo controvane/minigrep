@@ -1,4 +1,5 @@
 use crate::models::enums::pos_path::InputSource;
+use crate::models::enums::search_mode::SearchMode;
 use std::env;
 use std::process;
 
@@ -6,9 +7,9 @@ use std::process;
 
 pub struct Arguments {
     pub path: InputSource,
-    pub or_search_terms: Option<Vec<String>>,
-    pub and_search_terms: Option<Vec<String>>,
-    pub ex_search_terms: Option<Vec<String>>,
+    pub or_search_terms: Option<Vec<SearchMode>>,
+    pub and_search_terms: Option<Vec<SearchMode>>,
+    pub ex_search_terms: Option<Vec<SearchMode>>,
     pub case_insensitive: bool,
     pub before_lines: u16,
     pub after_lines: u16,
@@ -41,15 +42,15 @@ impl Arguments {
         return &self.path;
     }
 
-    pub fn get_search_terms_or(&self) -> &[String] {
+    pub fn get_search_terms_or(&self) -> &[SearchMode] {
         return self.or_search_terms.as_deref().unwrap_or_default();
     }
 
-    pub fn get_search_terms_and(&self) -> &[String] {
+    pub fn get_search_terms_and(&self) -> &[SearchMode] {
         return self.and_search_terms.as_deref().unwrap_or_default();
     }
 
-    pub fn get_search_terms_ex(&self) -> &[String] {
+    pub fn get_search_terms_ex(&self) -> &[SearchMode] {
         return self.ex_search_terms.as_deref().unwrap_or_default();
     }
 

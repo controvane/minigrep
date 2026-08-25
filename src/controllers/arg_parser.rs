@@ -5,6 +5,7 @@ use std::process;
 
 use crate::models::enums::flag_value::FlagValue;
 use crate::models::enums::pos_path::InputSource;
+use crate::models::enums::search_mode::SearchMode;
 use crate::models::structs::arguments::Arguments;
 
 pub fn parse_arguments(args: Vec<String>) -> Arguments {
@@ -179,20 +180,37 @@ pub fn parse_arguments(args: Vec<String>) -> Arguments {
         ret_args.path = InputSource::Normal(value.clone());
     }
 
+    //we now need to assign the case insensiteveness before the search terms
+    //to make sure the it is correctly checked
+    if let Some(FlagValue::EnableDisable(value)) = arguments.get("-i") {
+        ret_args.case_insensitive = *value;
+    }
+
     if let Some(FlagValue::SearchTerms(value)) = arguments.get("-eq") {
-        ret_args.and_search_terms = Some(value.clone())
+        ret_args.and_search_terms = Some(
+            value
+                .iter()
+                .map(|elem| SearchMode::new(elem.clone(), ret_args.get_case_insensitive()))
+                .collect(),
+        );
     }
 
     if let Some(FlagValue::SearchTerms(value)) = arguments.get("-c") {
-        ret_args.or_search_terms = Some(value.clone())
+        ret_args.or_search_terms = Some(
+            value
+                .iter()
+                .map(|elem| SearchMode::new(elem.clone(), ret_args.get_case_insensitive()))
+                .collect(),
+        );
     }
 
     if let Some(FlagValue::SearchTerms(value)) = arguments.get("-ne") {
-        ret_args.ex_search_terms = Some(value.clone())
-    }
-
-    if let Some(FlagValue::EnableDisable(value)) = arguments.get("-i") {
-        ret_args.case_insensitive = *value;
+        ret_args.ex_search_terms = Some(
+            value
+                .iter()
+                .map(|elem| SearchMode::new(elem.clone(), ret_args.get_case_insensitive()))
+                .collect(),
+        );
     }
 
     if let Some(FlagValue::ExtraLines(value)) = arguments.get("-a") {
