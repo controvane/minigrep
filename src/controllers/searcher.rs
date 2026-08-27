@@ -5,7 +5,7 @@ use crate::models::structs::arguments::Arguments;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::collections::VecDeque;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::process;
 
 fn line_matches(
@@ -94,11 +94,30 @@ pub fn search(arguments: Arguments) {
                         return;
                     }
                     let stdout = io::stdout();
-                    let mut out = stdout.lock();
-                    writeln!(out, "{}: ", file_path.display()).unwrap();
-                    for line in lines {
-                        writeln!(out, "\t{}", line).unwrap();
+                    let mut out = BufWriter::new(stdout.lock());
+                    if let Err(e) = writeln!(out, "{}: ", file_path.display()) {
+                        if e.kind() == std::io::ErrorKind::BrokenPipe {
+                            process::exit(0);
+                        }
+                        eprintln!("well ... this should not have happened: {}.", e);
+                        process::exit(1);
                     }
+                    for line in lines {
+                        if let Err(e) = writeln!(out, "\t{}", line) {
+                            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                                process::exit(0);
+                            }
+                            eprintln!("well ... this should not have happened: {}.", e);
+                            process::exit(1);
+                        };
+                    }
+                    if let Err(e) = out.flush() {
+                        if e.kind() == std::io::ErrorKind::BrokenPipe {
+                            return;
+                        }
+                        eprintln!("well ... this should not have happened: {}.", e);
+                        process::exit(1);
+                    };
                 });
         }
         //Arm that reads what was piped from another command
@@ -120,9 +139,24 @@ pub fn search(arguments: Arguments) {
 //Cause I did not wanted to use the same code in two different places
 //It just loops and prints over a list of strings.
 fn print_found_lines(found_lines: impl Iterator<Item = String>) {
+    let stdout = io::stdout();
+    let mut out = BufWriter::new(stdout.lock());
     for line in found_lines {
-        println!("{}", line);
+        if let Err(e) = writeln!(out, "{}", line) {
+            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                return;
+            }
+            eprintln!("well ... this should not have happened: {}.", e);
+            process::exit(1);
+        };
     }
+    if let Err(e) = out.flush() {
+        if e.kind() == std::io::ErrorKind::BrokenPipe {
+            return;
+        }
+        eprintln!("well ... this should not have happened: {}.", e);
+        process::exit(1);
+    };
 }
 
 //This is the function that does the search_on_buffer
@@ -162,13 +196,13 @@ fn search_on_buffer(
                 //Emit the before-context we have been holding.
                 block.extend(before_buf.drain(..).map(|(i, elem)| {
                     if numerate_lines {
-                        return format!("{}: {}", i + 1, elem.trim()).to_string();
+                        return format!("{}:\t{}", i + 1, elem.trim()).to_string();
                     }
                     return elem.trim().to_string();
                 }));
 
                 let pushable_line = if numerate_lines {
-                    format!("{}: {}", index + 1, line.trim()).to_string()
+                    format!("{}:\t{}", index + 1, line.trim()).to_string()
                 } else {
                     line.trim().to_string()
                 };
@@ -184,7 +218,7 @@ fn search_on_buffer(
 
             if after_left > 0 {
                 let pushable_line = if numerate_lines {
-                    format!("{}: {}", index + 1, line.trim()).to_string()
+                    format!("{}:\t{}", index + 1, line.trim()).to_string()
                 } else {
                     line.trim().to_string()
                 };
