@@ -103,7 +103,7 @@ pub fn search(arguments: Arguments) {
                         process::exit(1);
                     }
                     for line in lines {
-                        if let Err(e) = writeln!(out, "\t{}", line) {
+                        if let Err(e) = writeln!(out, "\t{}", line.trim()) {
                             if e.kind() == std::io::ErrorKind::BrokenPipe {
                                 process::exit(0);
                             }
@@ -142,7 +142,7 @@ fn print_found_lines(found_lines: impl Iterator<Item = String>) {
     let stdout = io::stdout();
     let mut out = BufWriter::new(stdout.lock());
     for line in found_lines {
-        if let Err(e) = writeln!(out, "{}", line) {
+        if let Err(e) = writeln!(out, "{}", line.trim()) {
             if e.kind() == std::io::ErrorKind::BrokenPipe {
                 return;
             }
@@ -196,15 +196,15 @@ fn search_on_buffer(
                 //Emit the before-context we have been holding.
                 block.extend(before_buf.drain(..).map(|(i, elem)| {
                     if numerate_lines {
-                        return format!("{}:\t{}", i + 1, elem.trim()).to_string();
+                        return format!("{}:\t{}", i + 1, elem.trim());
                     }
-                    return elem.trim().to_string();
+                    return elem;
                 }));
 
                 let pushable_line = if numerate_lines {
-                    format!("{}:\t{}", index + 1, line.trim()).to_string()
+                    format!("{}:\t{}", index + 1, line.trim())
                 } else {
-                    line.trim().to_string()
+                    line
                 };
 
                 //And the matched line itself.
@@ -218,9 +218,9 @@ fn search_on_buffer(
 
             if after_left > 0 {
                 let pushable_line = if numerate_lines {
-                    format!("{}:\t{}", index + 1, line.trim()).to_string()
+                    format!("{}:\t{}", index + 1, line.trim())
                 } else {
-                    line.trim().to_string()
+                    line
                 };
                 //After-context: emit it and count down.
                 after_left -= 1;
