@@ -8,28 +8,22 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::process;
 
-//three functions to apply the filters to and or and xor
-fn matches_any(line: &str, terms: &[SearchMode]) -> bool {
-    return terms.iter().any(|term| term.matches(line));
-}
-
-fn matches_all(line: &str, terms: &[SearchMode]) -> bool {
-    return terms.iter().all(|term| term.matches(line));
-}
-
-fn matches_none(line: &str, terms: &[SearchMode]) -> bool {
-    return !terms.iter().any(|term| term.matches(line));
-}
-
 fn line_matches(
     line: &str,
-    or_terms: &[SearchMode],
-    and_terms: &[SearchMode],
-    ex_terms: &[SearchMode],
+    or_terms: &Option<SearchMode>,
+    and_terms: &Option<SearchMode>,
+    ex_terms: &Option<SearchMode>,
 ) -> bool {
-    return (or_terms.is_empty() || matches_any(line, or_terms))
-        && (and_terms.is_empty() || matches_all(line, and_terms))
-        && (ex_terms.is_empty() || matches_none(line, ex_terms));
+    return (match or_terms {
+        Some(terms) => terms.matches_any(line),
+        None => true,
+    }) && (match and_terms {
+        Some(terms) => terms.matches_all(line),
+        None => true,
+    }) && (match ex_terms {
+        Some(terms) => terms.matches_none(line),
+        None => true,
+    });
 }
 
 pub fn search(arguments: Arguments) {
@@ -135,9 +129,9 @@ fn print_found_lines(found_lines: impl Iterator<Item = String>) {
 //Receives a buffer of the content of the file and compares it
 fn search_on_buffer(
     reader: Box<dyn BufRead>,
-    or_terms: &[SearchMode],
-    and_terms: &[SearchMode],
-    ex_terms: &[SearchMode],
+    or_terms: &Option<SearchMode>,
+    and_terms: &Option<SearchMode>,
+    ex_terms: &Option<SearchMode>,
     before_lines: u16,
     after_lines: u16,
     numerate_lines: bool,

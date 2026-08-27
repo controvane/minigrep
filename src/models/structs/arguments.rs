@@ -7,9 +7,9 @@ use std::process;
 
 pub struct Arguments {
     pub path: InputSource,
-    pub or_search_terms: Option<Vec<SearchMode>>,
-    pub and_search_terms: Option<Vec<SearchMode>>,
-    pub ex_search_terms: Option<Vec<SearchMode>>,
+    pub or_search_terms: Option<SearchMode>,
+    pub and_search_terms: Option<SearchMode>,
+    pub ex_search_terms: Option<SearchMode>,
     pub case_insensitive: bool,
     pub before_lines: u16,
     pub after_lines: u16,
@@ -42,16 +42,16 @@ impl Arguments {
         return &self.path;
     }
 
-    pub fn get_search_terms_or(&self) -> &[SearchMode] {
-        return self.or_search_terms.as_deref().unwrap_or_default();
+    pub fn get_search_terms_or(&self) -> &Option<SearchMode> {
+        return &self.or_search_terms;
     }
 
-    pub fn get_search_terms_and(&self) -> &[SearchMode] {
-        return self.and_search_terms.as_deref().unwrap_or_default();
+    pub fn get_search_terms_and(&self) -> &Option<SearchMode> {
+        return &self.and_search_terms;
     }
 
-    pub fn get_search_terms_ex(&self) -> &[SearchMode] {
-        return self.ex_search_terms.as_deref().unwrap_or_default();
+    pub fn get_search_terms_ex(&self) -> &Option<SearchMode> {
+        return &self.ex_search_terms;
     }
 
     pub fn get_case_insensitive(&self) -> bool {
