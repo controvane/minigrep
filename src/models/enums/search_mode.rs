@@ -1,109 +1,77 @@
-use aho_corasick::AhoCorasick;
-use regex::Regex;
+use aho_corasick::{AhoCorasick, AhoCorasickBuilder};
 
-//This whole enum is to support quicker case insensitive search_term
-//it turns the search term into a regex in case the case should #![no_std]
-//be considered.
+// Search terms are pre-compiled once into a matching strategy. Few-term
+// queries use plain `str::contains` (SIMD); many-term queries use a single
+// Aho-Corasick pass. Case-insensitive queries lowercase the line for the
+// `contains` path, and use an ASCII case-insensitive automaton for the
+// many-term path.
+//
+// Thresholds were found empirically: below them
+// `contains` (or `to_lowercase` + `contains`) beats the automaton, above them
+// the single pass wins.
+const SENSITIVE_THRESHOLD: usize = 8;
+const INSENSITIVE_THRESHOLD: usize = 4;
+
 pub enum SearchMode {
-    Sensitive((AhoCorasick, usize)),
-    Insensitive(Vec<Regex>),
+    Sensitive {
+        terms: Vec<String>,
+        aho: AhoCorasick,
+    },
+    Insensitive {
+        terms_lower: Vec<String>,
+        aho: AhoCorasick, // built with ascii_case_insensitive
+    },
 }
 
 impl SearchMode {
     pub fn new(search_terms: Vec<String>, case_insensitive: bool) -> Self {
         if case_insensitive {
-            return SearchMode::Insensitive(
-                search_terms
-                    .iter()
-                    .map(|search_term| {
-                        let escaped = regex::escape(&search_term);
-                        let prepped_term = Regex::new(&format!("(?i){}", escaped))
-                            .expect("This should not have happened as the string was escaped.");
-                        return prepped_term;
-                    })
-                    .collect(),
-            );
+            let terms_lower: Vec<String> = search_terms.iter().map(|t| t.to_lowercase()).collect();
+            let aho = AhoCorasickBuilder::new()
+                .ascii_case_insensitive(true)
+                .build(search_terms)
+                .expect("Failed to build the Aho-Corasick automaton.");
+            return SearchMode::Insensitive { terms_lower, aho };
         }
-        let term_ammount = search_terms.len();
-        return SearchMode::Sensitive((
-            AhoCorasick::new(search_terms)
-                .expect("Well ... this is awkward. The Aho should've been built"),
-            term_ammount,
-        ));
+        let aho = AhoCorasick::new(search_terms.clone())
+            .expect("Failed to build the Aho-Corasick automaton.");
+        return SearchMode::Sensitive {
+            terms: search_terms,
+            aho,
+        };
     }
 
     // Now the three functions to determine if there is an and, or or none match are here
     pub fn matches_any(&self, line: &str) -> bool {
         match self {
-            SearchMode::Sensitive((aho, _len)) => {
+            SearchMode::Sensitive { terms, aho } => {
+                if terms.len() <= SENSITIVE_THRESHOLD {
+                    return terms.iter().any(|t| line.contains(t));
+                }
                 return aho.is_match(line);
             }
-            SearchMode::Insensitive(value) => {
-                return value.iter().any(|elem| elem.is_match(line));
+            SearchMode::Insensitive { terms_lower, aho } => {
+                if terms_lower.len() <= INSENSITIVE_THRESHOLD {
+                    let lower = line.to_lowercase();
+                    return terms_lower.iter().any(|t| lower.contains(t));
+                }
+                return aho.is_match(line);
             }
         }
     }
 
     pub fn matches_none(&self, line: &str) -> bool {
-        match self {
-            SearchMode::Sensitive((aho, _len)) => {
-                return !aho.is_match(line);
-            }
-            SearchMode::Insensitive(value) => {
-                return !value.iter().any(|elem| elem.is_match(line));
-            }
-        }
+        return !self.matches_any(line);
     }
 
     pub fn matches_all(&self, line: &str) -> bool {
         match self {
-            SearchMode::Sensitive((aho, len)) => {
-                let len = *len;
-                if len == 0 {
-                    return true;
-                }
-
-                // Fast path: up to 64 terms fit in a single stack u64, no allocation.
-                if len <= 64 {
-                    let mut seen: u64 = 0;
-                    for m in aho.find_overlapping_iter(line) {
-                        seen |= 1u64 << m.pattern().as_usize();
-                    }
-                    let all = if len == 64 {
-                        u64::MAX
-                    } else {
-                        (1u64 << len) - 1
-                    };
-                    return seen == all;
-                }
-
-                // Fallback: more than 64 terms need a multi-word bitset.
-                let words = (len + 63) / 64;
-                let mut seen = vec![0u64; words];
-                for m in aho.find_overlapping_iter(line) {
-                    let i = m.pattern().as_usize();
-                    seen[i / 64] |= 1u64 << (i % 64);
-                }
-
-                // Every word must be fully set, except the last, which is masked
-                // to the exact number of remaining bits.
-                let last = words - 1;
-                let tail = len % 64;
-                let last_mask = if tail == 0 {
-                    u64::MAX
-                } else {
-                    (1u64 << tail) - 1
-                };
-                for (idx, word) in seen.iter().enumerate() {
-                    let expected = if idx == last { last_mask } else { u64::MAX };
-                    if *word != expected {
-                        return false;
-                    }
-                }
-                return true;
+            SearchMode::Sensitive { terms, .. } => {
+                return terms.iter().all(|t| line.contains(t));
             }
-            SearchMode::Insensitive(value) => {
-                return value.iter().all(|elem| elem.is_match(line));
+            SearchMode::Insensitive { terms_lower, .. } => {
+                let lower = line.to_lowercase();
+                return terms_lower.iter().all(|t| lower.contains(t));
             }
         }
     }

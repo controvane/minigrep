@@ -6,6 +6,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
+use std::path::PathBuf;
 use std::process;
 
 fn line_matches(
@@ -69,19 +70,32 @@ pub fn search(arguments: Arguments) {
                 return;
             }
             //Do search over all files on the selected directory on multiple threads
-            //Quickends searhces on directories
-            walk(path, &file_types)
-                .into_par_iter()
-                .for_each(|file_path| {
-                    let reader = match File::open(&file_path) {
-                        Ok(file) => Box::new(BufReader::new(file)),
-                        Err(_) => {
-                            eprintln!("File was either not found or inexistent.");
-                            return;
-                        }
-                    };
-                    let mut lines = search_on_buffer(
-                        reader,
+            //chunking the iterator at 64 paths at most
+            //Quickens searches on directories
+            let mut paths_chunk = Vec::with_capacity(64);
+            for file_path in walk(path, &file_types) {
+                paths_chunk.push(file_path);
+                if paths_chunk.len() == 64 {
+                    //flush the chunker, and iterate over it on the 64 existing paths
+                    let current_chunk = std::mem::take(&mut paths_chunk);
+                    current_chunk.into_par_iter().for_each(|file_path| {
+                        print_file(
+                            &file_path,
+                            or_terms,
+                            and_terms,
+                            ex_terms,
+                            before_lines,
+                            after_lines,
+                            num_lines,
+                        )
+                    });
+                }
+            }
+            //If there are still paths not searched, then go ahead
+            if !paths_chunk.is_empty() {
+                paths_chunk.into_par_iter().for_each(|file_path| {
+                    print_file(
+                        &file_path,
                         or_terms,
                         and_terms,
                         ex_terms,
@@ -89,36 +103,8 @@ pub fn search(arguments: Arguments) {
                         after_lines,
                         num_lines,
                     )
-                    .peekable();
-                    if lines.peek().is_none() {
-                        return;
-                    }
-                    let stdout = io::stdout();
-                    let mut out = BufWriter::new(stdout.lock());
-                    if let Err(e) = writeln!(out, "{}: ", file_path.display()) {
-                        if e.kind() == std::io::ErrorKind::BrokenPipe {
-                            process::exit(0);
-                        }
-                        eprintln!("well ... this should not have happened: {}.", e);
-                        process::exit(1);
-                    }
-                    for line in lines {
-                        if let Err(e) = writeln!(out, "\t{}", line.trim()) {
-                            if e.kind() == std::io::ErrorKind::BrokenPipe {
-                                process::exit(0);
-                            }
-                            eprintln!("well ... this should not have happened: {}.", e);
-                            process::exit(1);
-                        };
-                    }
-                    if let Err(e) = out.flush() {
-                        if e.kind() == std::io::ErrorKind::BrokenPipe {
-                            return;
-                        }
-                        eprintln!("well ... this should not have happened: {}.", e);
-                        process::exit(1);
-                    };
                 });
+            }
         }
         //Arm that reads what was piped from another command
         InputSource::Stdin => {
@@ -145,6 +131,62 @@ fn print_found_lines(found_lines: impl Iterator<Item = String>) {
         if let Err(e) = writeln!(out, "{}", line.trim()) {
             if e.kind() == std::io::ErrorKind::BrokenPipe {
                 return;
+            }
+            eprintln!("well ... this should not have happened: {}.", e);
+            process::exit(1);
+        };
+    }
+    if let Err(e) = out.flush() {
+        if e.kind() == std::io::ErrorKind::BrokenPipe {
+            return;
+        }
+        eprintln!("well ... this should not have happened: {}.", e);
+        process::exit(1);
+    };
+}
+
+fn print_file(
+    file_path: &PathBuf,
+    or_terms: &Option<SearchMode>,
+    and_terms: &Option<SearchMode>,
+    ex_terms: &Option<SearchMode>,
+    before_lines: u16,
+    after_lines: u16,
+    num_lines: bool,
+) {
+    let reader = match File::open(&file_path) {
+        Ok(file) => Box::new(BufReader::new(file)),
+        Err(_) => {
+            eprintln!("File was either not found or inexistent.");
+            return;
+        }
+    };
+    let mut lines = search_on_buffer(
+        reader,
+        or_terms,
+        and_terms,
+        ex_terms,
+        before_lines,
+        after_lines,
+        num_lines,
+    )
+    .peekable();
+    if lines.peek().is_none() {
+        return;
+    }
+    let stdout = io::stdout();
+    let mut out = BufWriter::new(stdout.lock());
+    if let Err(e) = writeln!(out, "{}: ", file_path.display()) {
+        if e.kind() == std::io::ErrorKind::BrokenPipe {
+            process::exit(0);
+        }
+        eprintln!("well ... this should not have happened: {}.", e);
+        process::exit(1);
+    }
+    for line in lines {
+        if let Err(e) = writeln!(out, "\t{}", line.trim()) {
+            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                process::exit(0);
             }
             eprintln!("well ... this should not have happened: {}.", e);
             process::exit(1);
