@@ -2,12 +2,15 @@ use crate::controllers::file_walker::walk;
 use crate::models::enums::pos_path::InputSource;
 use crate::models::enums::search_mode::SearchMode;
 use crate::models::structs::arguments::Arguments;
+use is_terminal::IsTerminal;
+use itoa::Buffer;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
 use std::process;
+use std::sync::OnceLock;
 
 fn line_matches(
     line: &str,
@@ -25,6 +28,19 @@ fn line_matches(
         Some(terms) => terms.matches_none(line),
         None => true,
     });
+}
+
+fn stdout_is_terminal() -> bool {
+    static TERMINAL: OnceLock<bool> = OnceLock::new();
+    return *TERMINAL.get_or_init(|| std::io::stdout().is_terminal());
+}
+
+fn paint(text: &str, code: &str) -> String {
+    if stdout_is_terminal() {
+        return format!("\x1b[{}m{}\x1b[0m", code, text);
+    } else {
+        return text.to_string();
+    }
 }
 
 pub fn search(arguments: Arguments) {
@@ -176,7 +192,7 @@ fn print_file(
     }
     let stdout = io::stdout();
     let mut out = BufWriter::new(stdout.lock());
-    if let Err(e) = writeln!(out, "{}: ", file_path.display()) {
+    if let Err(e) = writeln!(out, "{}: ", paint(&file_path.display().to_string(), "36;1")) {
         if e.kind() == std::io::ErrorKind::BrokenPipe {
             process::exit(0);
         }
@@ -217,6 +233,7 @@ fn search_on_buffer(
     let mut after_left: u16 = 0;
     let mut gap = false;
     let mut emitted_any = false;
+    let mut num_formatter = Buffer::new();
 
     return reader
         .lines()
@@ -238,13 +255,21 @@ fn search_on_buffer(
                 //Emit the before-context we have been holding.
                 block.extend(before_buf.drain(..).map(|(i, elem)| {
                     if numerate_lines {
-                        return format!("{}:\t{}", i + 1, elem.trim());
+                        return format!(
+                            "{}:\t{}",
+                            paint(num_formatter.format(i + 1), "32;1"),
+                            elem.trim()
+                        );
                     }
                     return elem;
                 }));
 
                 let pushable_line = if numerate_lines {
-                    format!("{}:\t{}", index + 1, line.trim())
+                    format!(
+                        "{}:\t{}",
+                        paint(num_formatter.format(index + 1), "32;1"),
+                        line.trim()
+                    )
                 } else {
                     line
                 };
@@ -260,7 +285,11 @@ fn search_on_buffer(
 
             if after_left > 0 {
                 let pushable_line = if numerate_lines {
-                    format!("{}:\t{}", index + 1, line.trim())
+                    format!(
+                        "{}:\t{}",
+                        paint(num_formatter.format(index + 1), "32;1"),
+                        line.trim()
+                    )
                 } else {
                     line
                 };
